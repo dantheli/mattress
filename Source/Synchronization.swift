@@ -8,7 +8,7 @@
 
 import Foundation
 
-func synchronized<T>(lockObj: AnyObject!, closure: () -> T) -> T {
+func synchronized<T>(_ lockObj: AnyObject!, closure: () -> T) -> T {
     objc_sync_enter(lockObj)
     let value: T = closure()
     objc_sync_exit(lockObj)

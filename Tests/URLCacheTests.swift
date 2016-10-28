@@ -8,27 +8,27 @@
 
 import XCTest
 
-private let url = NSURL(string: "foo://bar")!
+private let url = URL(string: "foo://bar")!
 private let TestDirectory = "test"
 
 class MockCacher: WebViewCacher {
-    override func mattressCacheURL(url: NSURL,
-        loadedHandler: WebViewLoadedHandler,
-        completionHandler: WebViewCacherCompletionHandler,
-        failureHandler: (NSError) -> ()) {}
+    override func mattressCacheURL(_ url: URL,
+                                   loadedHandler: @escaping WebViewLoadedHandler,
+                                   completionHandler: @escaping WebViewCacherCompletionHandler,
+                                   failureHandler: @escaping (Error) -> ()) {}
 }
 
 class URLCacheTests: XCTestCase {
 
     func testRequestShouldBeStoredInMattress() {
-        let mutableRequest = NSMutableURLRequest(URL: url)
-        NSURLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, inRequest: mutableRequest)
+        let mutableRequest = URLRequest(url: url)
+        Foundation.URLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, in: mutableRequest as! NSMutableURLRequest)
         XCTAssert(URLCache.requestShouldBeStoredInMattress(mutableRequest), "")
     }
 
     func testValidMattressResponseGoesToMattressDiskCache() {
-        let mutableRequest = NSMutableURLRequest(URL: url)
-        NSURLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, inRequest: mutableRequest)
+        let mutableRequest = URLRequest(url: url)
+        Foundation.URLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, in: mutableRequest as! NSMutableURLRequest)
 
         var didCallMock = false
         let cache = makeMockURLCache()
@@ -36,52 +36,52 @@ class URLCacheTests: XCTestCase {
             didCallMock = true
         }
         let response = makeValidCachedResponseForRequest(mutableRequest)
-        cache.storeCachedResponse(response, forRequest: mutableRequest)
+        cache.storeCachedResponse(response, for: mutableRequest)
         XCTAssertTrue(didCallMock, "Disk cache storage method was not called")
     }
 
     func testInvalidMattressResponseDoesNotGoToMattressDiskCache() {
-        let mutableRequest = NSMutableURLRequest(URL: url)
-        NSURLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, inRequest: mutableRequest)
+        let mutableRequest = URLRequest(url: url)
+        Foundation.URLProtocol.setProperty(true, forKey: MattressCacheRequestPropertyKey, in: mutableRequest as! NSMutableURLRequest)
 
         var didCallMock = false
         let cache = makeMockURLCache()
         cache.mockDiskCache.storeCacheCalledHandler = {
             didCallMock = true
         }
-        let response = NSCachedURLResponse()
-        cache.storeCachedResponse(response, forRequest: mutableRequest)
+        let response = CachedURLResponse()
+        cache.storeCachedResponse(response, for: mutableRequest)
         XCTAssertFalse(didCallMock, "Disk cache storage method was not called")
     }
 
     func testStandardRequestDoesNotGoToMattressDiskCache() {
         // Ensure plist on disk is reset
-        let diskCache = DiskCache(path: TestDirectory, searchPathDirectory: .DocumentDirectory, maxCacheSize: 0)
+        let diskCache = DiskCache(path: TestDirectory, searchPathDirectory: .documentDirectory, maxCacheSize: 0)
         if let path = diskCache.diskPathForPropertyList()?.path {
-            try! NSFileManager.defaultManager().removeItemAtPath(path)
+            try! FileManager.default.removeItem(atPath: path)
         }
 
-        let mutableRequest = NSMutableURLRequest(URL: url)
+        let mutableRequest = URLRequest(url: url)
 
         var didCallMock = false
         let cache = makeMockURLCache()
         cache.mockDiskCache.storeCacheCalledHandler = {
             didCallMock = true
         }
-        let response = NSCachedURLResponse()
-        cache.storeCachedResponse(response, forRequest: mutableRequest)
+        let response = CachedURLResponse()
+        cache.storeCachedResponse(response, for: mutableRequest)
         XCTAssertFalse(didCallMock, "Disk cache storage method was called")
     }
 
     func testCachedResponseIsRetriedFromMattressDiskCache() {
-        let request = NSMutableURLRequest(URL: url)
-        let cachedResponse = NSCachedURLResponse()
+        let request = URLRequest(url: url)
+        let cachedResponse = CachedURLResponse()
 
         let cache = makeMockURLCache()
         cache.mockDiskCache.retrieveCacheCalledHandler = { request in
             return cachedResponse
         }
-        let response = cache.cachedResponseForRequest(request)
+        let response = cache.cachedResponse(for: request)
         if let response = response {
             XCTAssert(response == cachedResponse, "Response did not match")
         } else {
@@ -99,7 +99,7 @@ class URLCacheTests: XCTestCase {
     }
 
     func testGettingWebViewCacherResponsibleForARequest() {
-        let request = NSURLRequest(URL: url)
+        let request = URLRequest(url: url)
         let cacher1 = SourceCache()
         let cacher2 = WebViewCacher()
 
@@ -115,19 +115,19 @@ class URLCacheTests: XCTestCase {
 
     func testCachingARequestToTheStandardCacheAlsoUpdatesTheRequestInTheMattressCacheIfItWasAlreadyStoredOnDisk() {
         // Ensure plist on disk is reset
-        let diskCache = DiskCache(path: TestDirectory, searchPathDirectory: .DocumentDirectory, maxCacheSize: 0)
+        let diskCache = DiskCache(path: TestDirectory, searchPathDirectory: .documentDirectory, maxCacheSize: 0)
         if let path = diskCache.diskPathForPropertyList()?.path {
-            try! NSFileManager.defaultManager().removeItemAtPath(path)
+            try! FileManager.default.removeItem(atPath: path)
         }
 
         let cache = MockURLCacheWithMockDiskCache(memoryCapacity: 0, diskCapacity: 0, diskPath: nil,
-            mattressDiskCapacity: 1024 * 1024, mattressDiskPath: nil, mattressSearchPathDirectory: .DocumentDirectory, isOfflineHandler: {
+            mattressDiskCapacity: 1024 * 1024, mattressDiskPath: nil, mattressSearchPathDirectory: .documentDirectory, isOfflineHandler: {
                 return false
         })
 
         // Make sure the request has been stored once
-        let url = NSURL(string: "foo://bar")!
-        let request = NSURLRequest(URL: url)
+        let url = URL(string: "foo://bar")!
+        let request = URLRequest(url: url)
         let cachedResponse = makeValidCachedResponseForRequest(request)
         cache.mockDiskCache.storeCachedResponseOnSuper(cachedResponse, forRequest: request)
 
@@ -136,54 +136,54 @@ class URLCacheTests: XCTestCase {
             didCall = true
         }
 
-        cache.storeCachedResponse(cachedResponse, forRequest: request)
+        cache.storeCachedResponse(cachedResponse, for: request)
         XCTAssert(didCall, "The Mattress disk cache storage method was not called")
     }
 
     // Mark: - Helpers
 
-    func makeValidCachedResponseForRequest(request: NSURLRequest) -> NSCachedURLResponse {
-        let url = request.URL ?? NSURL(string: "")!
-        let data = "hello, world".dataUsingEncoding(NSUTF8StringEncoding, allowLossyConversion: false)!
-        let response = NSHTTPURLResponse(URL: url, statusCode: 200, HTTPVersion: "HTTP/1.1", headerFields: nil)!
-        return NSCachedURLResponse(response: response, data: data, userInfo: nil, storagePolicy: .Allowed)
+    func makeValidCachedResponseForRequest(_ request: URLRequest) -> CachedURLResponse {
+        let url = request.url ?? URL(string: "")!
+        let data = "hello, world".data(using: String.Encoding.utf8, allowLossyConversion: false)!
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil)!
+        return CachedURLResponse(response: response, data: data, userInfo: nil, storagePolicy: .allowed)
     }
 
     func makeURLCache() -> URLCache {
         return URLCache(memoryCapacity: 0, diskCapacity: 0, diskPath: nil, mattressDiskCapacity: 0,
-            mattressDiskPath: nil, mattressSearchPathDirectory: .DocumentDirectory, isOfflineHandler: nil)
+            mattressDiskPath: nil, mattressSearchPathDirectory: .documentDirectory, isOfflineHandler: nil)
     }
 
     func makeMockURLCache() -> MockURLCacheWithMockDiskCache {
         return MockURLCacheWithMockDiskCache(memoryCapacity: 0, diskCapacity: 0, diskPath: nil, mattressDiskCapacity: 0,
-            mattressDiskPath: nil, mattressSearchPathDirectory: .DocumentDirectory, isOfflineHandler: nil)
+            mattressDiskPath: nil, mattressSearchPathDirectory: .documentDirectory, isOfflineHandler: nil)
     }
 }
 
 // Mark: - An ode to Xcode being the worst -OR- locally scoped subclasses are supposed to work but don't
 
 class SourceCache: WebViewCacher {
-    override func didOriginateRequest(request: NSURLRequest) -> Bool {
+    override func didOriginateRequest(_ request: URLRequest) -> Bool {
         return true
     }
 }
 
 class MockDiskCache: DiskCache {
     var storeCacheCalledHandler: (() -> ())?
-    var retrieveCacheCalledHandler: ((request: NSURLRequest) -> (NSCachedURLResponse?))?
+    var retrieveCacheCalledHandler: ((_ request: URLRequest) -> (CachedURLResponse?))?
 
-    func storeCachedResponseOnSuper(cachedResponse: NSCachedURLResponse, forRequest request: NSURLRequest) -> Bool {
-        return super.storeCachedResponse(cachedResponse, forRequest: request)
+    func storeCachedResponseOnSuper(_ cachedResponse: CachedURLResponse, forRequest request: URLRequest) -> Bool {
+        return super.store(cachedResponse: cachedResponse, for: request)
     }
 
-    override func storeCachedResponse(cachedResponse: NSCachedURLResponse, forRequest request: NSURLRequest) -> Bool {
+    override func store(cachedResponse: CachedURLResponse, for request: URLRequest) -> Bool {
         storeCacheCalledHandler?()
         return true
     }
 
-    override func cachedResponseForRequest(request: NSURLRequest) -> NSCachedURLResponse? {
+    override func cachedResponse(for request: URLRequest) -> CachedURLResponse? {
         if let handler = retrieveCacheCalledHandler {
-            return handler(request: request)
+            return handler(request)
         }
         return nil
     }
@@ -194,12 +194,12 @@ class MockURLCacheWithMockDiskCache: URLCache {
     }
 
     override init(memoryCapacity: Int, diskCapacity: Int, diskPath path: String?, mattressDiskCapacity: Int,
-        mattressDiskPath mattressPath: String?, mattressSearchPathDirectory searchPathDirectory: NSSearchPathDirectory, isOfflineHandler: (() -> Bool)?)
+        mattressDiskPath mattressPath: String?, mattressSearchPathDirectory searchPathDirectory: FileManager.SearchPathDirectory, isOfflineHandler: (() -> Bool)?)
     {
         super.init(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity, diskPath: path, mattressDiskCapacity: mattressDiskCapacity,
             mattressDiskPath: mattressPath, mattressSearchPathDirectory: searchPathDirectory, isOfflineHandler: isOfflineHandler)
 
-        diskCache = MockDiskCache(path: TestDirectory, searchPathDirectory: .DocumentDirectory, maxCacheSize: 1024)
+        diskCache = MockDiskCache(path: TestDirectory, searchPathDirectory: .documentDirectory, maxCacheSize: 1024)
     }
 }
 

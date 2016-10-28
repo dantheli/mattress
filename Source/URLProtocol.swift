@@ -25,21 +25,21 @@ public var shouldRetrieveFromMattressCacheByDefault = false
     Additionally it ensures that when we are offline, we will
     use the Mattress diskCache if possible.
 */
-class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
+class URLProtocol: Foundation.URLProtocol, URLSessionDataDelegate {
 
     /// Used to stop loading
-    lazy var session: NSURLSession = {
-        let config = NSURLSession.sharedSession().configuration
-        return NSURLSession(configuration: config, delegate: self, delegateQueue: nil)
+    lazy var session: Foundation.URLSession = {
+        let config = Foundation.URLSession.shared.configuration
+        return Foundation.URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
-    var dataTask: NSURLSessionDataTask?
+    var dataTask: URLSessionDataTask?
     
     static var shouldRetrieveFromMattressCacheByDefault = false
     
     // MARK: - Class Methods
 
-    override class func canInitWithRequest(request: NSURLRequest) -> Bool {
-        if NSURLProtocol.propertyForKey(URLProtocolHandledRequestKey, inRequest: request) != nil {
+    override class func canInit(with request: URLRequest) -> Bool {
+        if Foundation.URLProtocol.property(forKey: URLProtocolHandledRequestKey, in: request) != nil {
             return false
         }
 
@@ -49,7 +49,7 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
         }
 
         var isOffline = false
-        if let cache = NSURLCache.sharedURLCache() as? URLCache {
+        if let cache = Foundation.URLCache.shared as? URLCache {
             if let handler = cache.isOfflineHandler {
                 isOffline = handler()
             }
@@ -57,19 +57,19 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
 
         // Online requests get a chance to opt out of retreival from cache
         if !isOffline &&
-            NSURLProtocol.propertyForKey(MattressAvoidCacheRetreiveOnlineRequestPropertyKey,
-                inRequest: request) as? Bool == true
+            Foundation.URLProtocol.property(forKey: MattressAvoidCacheRetreiveOnlineRequestPropertyKey,
+                in: request) as? Bool == true
         {
             return false
         }
 
         // Online requests that didn't opt out will get included if turned on
         // and if there is something in the Mattress disk cache to get fetched.
-        let scheme = request.URL?.scheme
+        let scheme = request.url?.scheme
         if scheme == "http" || scheme == "https" {
             if shouldRetrieveFromMattressCacheByDefault {
-                if let cache = NSURLCache.sharedURLCache() as? URLCache {
-                    if cache.hasMattressCachedResponseForRequest(request) {
+                if let cache = Foundation.URLCache.shared as? URLCache {
+                    if cache.hasMattressCachedResponse(for: request) {
                         return true
                     }
                 }
@@ -92,7 +92,7 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
     
         :param: cache The cache to be added.
     */
-    class func addCache(cache: URLCache) {
+    class func addCache(_ cache: URLCache) {
         synchronized(cacheLockObject) { () -> Void in
             if caches.count == 0 {
                 self.registerProtocol(true)
@@ -111,10 +111,10 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
     
         :param: cache The cache to be removed.
     */
-    class func removeCache(cache: URLCache) {
+    class func removeCache(_ cache: URLCache) {
         synchronized(cacheLockObject) { () -> Void in
-            if let index = caches.indexOf(cache) {
-                caches.removeAtIndex(index)
+            if let index = caches.index(of: cache) {
+                caches.remove(at: index)
                 if caches.count == 0 {
                     self.registerProtocol(false)
                 }
@@ -128,7 +128,7 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
         :param: shouldRegister If true, registers this class
             for URL handling. If false, unregisters the class.
     */
-    class func registerProtocol(shouldRegister: Bool) {
+    class func registerProtocol(_ shouldRegister: Bool) {
         if shouldRegister {
             self.registerClass(self)
         } else {
@@ -144,11 +144,11 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
         
         :returns: The WebViewCacher responsible for the request.
     */
-    private class func webViewCacherForRequest(request: NSURLRequest) -> WebViewCacher? {
+    fileprivate class func webViewCacherForRequest(_ request: URLRequest) -> WebViewCacher? {
         var webViewCacherReturn: WebViewCacher? = nil
         
         synchronized(cacheLockObject) { () -> Void in
-            for cache in caches.reverse() {
+            for cache in caches.reversed() {
                 if let webViewCacher = cache.webViewCacherOriginatingRequest(request) {
                     webViewCacherReturn = webViewCacher
                     break
@@ -167,39 +167,39 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
     
         :returns: The mutable, configured copy of the request.
     */
-    private class func mutableCanonicalRequestForRequest(request: NSURLRequest) -> NSMutableURLRequest {
-        var mutableRequest = request.mutableCopy() as! NSMutableURLRequest
-        mutableRequest.cachePolicy = .ReturnCacheDataElseLoad
+    fileprivate class func mutableCanonicalRequest(for request: URLRequest) -> URLRequest {
+        var mutableRequest = request
+        mutableRequest.cachePolicy = .returnCacheDataElseLoad
         if let webViewCacher = webViewCacherForRequest(request) {
-            mutableRequest = webViewCacher.mutableRequestForRequest(request)
+            mutableRequest = webViewCacher.mutableRequest(for: request)
         }
 
-        NSURLProtocol.setProperty(true, forKey: URLProtocolHandledRequestKey, inRequest: mutableRequest)
+        Foundation.URLProtocol.setProperty(true, forKey: URLProtocolHandledRequestKey, in: mutableRequest as! NSMutableURLRequest)
         return mutableRequest
     }
 
-    override class func canonicalRequestForRequest(request: NSURLRequest) -> NSURLRequest {
-        return mutableCanonicalRequestForRequest(request)
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        return mutableCanonicalRequest(for: request)
     }
 
-    override class func requestIsCacheEquivalent(a: NSURLRequest, toRequest b: NSURLRequest) -> Bool {
-        return super.requestIsCacheEquivalent(a, toRequest:b)
+    override class func requestIsCacheEquivalent(_ a: URLRequest, to b: URLRequest) -> Bool {
+        return super.requestIsCacheEquivalent(a, to:b)
     }
 
     // MARK: - Instance Methods
 
     override func startLoading() {
-        let mutableRequest = URLProtocol.mutableCanonicalRequestForRequest(request)
+        let mutableRequest = URLProtocol.mutableCanonicalRequest(for: request)
         if let
-            cache = NSURLCache.sharedURLCache() as? URLCache,
-            cachedResponse = cache.cachedResponseForRequest(mutableRequest),
-            response = cachedResponse.response as? NSHTTPURLResponse
-            where response.statusCode < 400
+            cache = Foundation.URLCache.shared as? URLCache,
+            let cachedResponse = cache.cachedResponse(for: mutableRequest),
+            let response = cachedResponse.response as? HTTPURLResponse
+            , response.statusCode < 400
         {
-            client?.URLProtocol(self, cachedResponseIsValid: cachedResponse)
+            client?.urlProtocol(self, cachedResponseIsValid: cachedResponse)
             return
         }
-        self.dataTask = self.session.dataTaskWithRequest(request)
+        self.dataTask = self.session.dataTask(with: request)
         self.dataTask?.resume()
     }
 
@@ -210,30 +210,30 @@ class URLProtocol: NSURLProtocol, NSURLSessionDataDelegate {
 
     // Mark: - NSURLSessionDataDelegate Methods
 
-    func URLSession(session: NSURLSession,
-        dataTask: NSURLSessionDataTask,
-        didReceiveResponse response: NSURLResponse,
-        completionHandler: (NSURLSessionResponseDisposition) -> Void)
+    func urlSession(_ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void)
     {
-        completionHandler(.Allow)
-        self.client?.URLProtocol(self, didReceiveResponse: response, cacheStoragePolicy: .Allowed)
+        completionHandler(.allow)
+        self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .allowed)
     }
 
-    func URLSession(session: NSURLSession,
-        dataTask: NSURLSessionDataTask,
-        didReceiveData data: NSData)
+    func urlSession(_ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive data: Data)
     {
-        self.client?.URLProtocol(self, didLoadData: data)
+        self.client?.urlProtocol(self, didLoad: data)
     }
 
-    func URLSession(session: NSURLSession,
-        task: NSURLSessionTask,
-        didCompleteWithError error: NSError?)
+    func urlSession(_ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?)
     {
         if let error = error {
-            self.client?.URLProtocol(self, didFailWithError: error)
+            self.client?.urlProtocol(self, didFailWithError: error)
         } else {
-            self.client?.URLProtocolDidFinishLoading(self)
+            self.client?.urlProtocolDidFinishLoading(self)
         }
     }
 }

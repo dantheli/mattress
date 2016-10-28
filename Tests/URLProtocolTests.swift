@@ -38,7 +38,7 @@ class URLProtocolTests: XCTestCase {
 
     func makeMockCache() -> MockCache {
         return MockCache(memoryCapacity: 0, diskCapacity: 0, diskPath: nil, mattressDiskCapacity: 0,
-            mattressDiskPath: nil, mattressSearchPathDirectory: .DocumentDirectory, isOfflineHandler: nil)
+            mattressDiskPath: nil, mattressSearchPathDirectory: .documentDirectory, isOfflineHandler: nil)
     }
 }
 
@@ -47,7 +47,7 @@ class URLProtocolTests: XCTestCase {
 var mockProtocolIsRegistered = false
 
 class MockProtocol: URLProtocol {
-    override class func registerProtocol(shouldRegister: Bool) {
+    override class func registerProtocol(_ shouldRegister: Bool) {
         mockProtocolIsRegistered = shouldRegister
     }
 }
@@ -57,7 +57,7 @@ class MockCache: URLCache {
         MockProtocol.removeCache(self)
     }
 
-    override func addToProtocol(shouldAdd: Bool) {
+    override func addToProtocol(_ shouldAdd: Bool) {
         if shouldAdd {
             MockProtocol.addCache(self)
         } else {
